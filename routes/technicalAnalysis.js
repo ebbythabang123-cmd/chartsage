@@ -1,24 +1,20 @@
 const express = require('express');
 const auth = require('../middleware/auth');
 const AnalysisResult = require('../models/AnalysisResult');
-const { analyzeSymbol, compareAssets } = require('../services/technicalAnalysisService');
+const { analyzeTechnicalSymbol, compareAssets } = require('../services/technicalAnalysisService');
 
 const router = express.Router();
 
 // Analyze symbol
 router.post('/analyze', auth, async (req, res) => {
   try {
-    const { symbol, timeframe = '1D' } = req.body;
+    const { symbol, timeframe } = req.body;
 
-    if (!symbol) {
-      return res.status(400).json({ error: 'Symbol required' });
+    if (!symbol || !timeframe) {
+      return res.status(400).json({ error: 'Symbol and timeframe are required' });
     }
 
-    const analysisResult = await analyzeSymbol(symbol, timeframe);
-
-    if (!analysisResult.success) {
-      return res.status(400).json({ error: analysisResult.error });
-    }
+    const analysisResult = await analyzeTechnicalSymbol(symbol, timeframe);
 
     // Save to database
     const analysis = new AnalysisResult({
@@ -36,6 +32,7 @@ router.post('/analyze', auth, async (req, res) => {
       analysis: analysisResult.analysis
     });
   } catch (error) {
+    console.error('Technical analysis error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -43,36 +40,31 @@ router.post('/analyze', auth, async (req, res) => {
 // Compare assets
 router.post('/compare', auth, async (req, res) => {
   try {
-    const { assets, timeframe = '1D' } = req.body;
+    const { assets, timeframe } = req.body;
 
-    if (!assets || !Array.isArray(assets) || assets.length < 2) {
-      return res.status(400).json({ error: 'At least 2 assets required' });
+    if (!assets || !timeframe) {
+      return res.status(400).json({ error: 'Assets and timeframe are required' });
     }
 
     const comparisonResult = await compareAssets(assets, timeframe);
 
-    if (!comparisonResult.success) {
-      return res.status(400).json({ error: comparisonResult.error });
-    }
+    // Save to database
+    const analysis = new AnalysisResult({
+      userId: req.userId,
+      analysisType: 'technical_symbol',
+      input: { symbols: assets, timeframe },
+      analysis: comparisonResult.comparison
+    });
+
+    await analysis.save();
 
     res.json({
       success: true,
+      analysisId: analysis._id,
       comparison: comparisonResult.comparison
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get analysis history
-router.get('/history', auth, async (req, res) => {
-  try {
-    const analyses = await AnalysisResult.find(
-      { userId: req.userId, analysisType: 'technical_symbol' }
-    ).sort({ createdAt: -1 }).limit(50);
-
-    res.json({ success: true, analyses });
-  } catch (error) {
+    console.error('Comparison error:', error);
     res.status(500).json({ error: error.message });
   }
 });

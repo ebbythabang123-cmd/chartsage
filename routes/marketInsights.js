@@ -1,6 +1,7 @@
 const express = require('express');
 const auth = require('../middleware/auth');
-const { getMarketInsights, analyzePatterns, getRiskManagement } = require('../services/marketInsightsService');
+const AnalysisResult = require('../models/AnalysisResult');
+const { getMarketInsights, analyzePatterns, getRiskManagementAdvice } = require('../services/marketInsightsService');
 
 const router = express.Router();
 
@@ -9,15 +10,22 @@ router.get('/', auth, async (req, res) => {
   try {
     const insightsResult = await getMarketInsights();
 
-    if (!insightsResult.success) {
-      return res.status(400).json({ error: insightsResult.error });
-    }
+    // Save to database
+    const analysis = new AnalysisResult({
+      userId: req.userId,
+      analysisType: 'market_insight',
+      analysis: insightsResult.insights
+    });
+
+    await analysis.save();
 
     res.json({
       success: true,
+      analysisId: analysis._id,
       insights: insightsResult.insights
     });
   } catch (error) {
+    console.error('Market insights error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -27,21 +35,29 @@ router.post('/patterns', auth, async (req, res) => {
   try {
     const { patterns } = req.body;
 
-    if (!patterns || !Array.isArray(patterns) || patterns.length === 0) {
-      return res.status(400).json({ error: 'Patterns array required' });
+    if (!patterns || !Array.isArray(patterns)) {
+      return res.status(400).json({ error: 'Patterns array is required' });
     }
 
-    const analysisResult = await analyzePatterns(patterns);
+    const patternAnalysis = await analyzePatterns(patterns);
 
-    if (!analysisResult.success) {
-      return res.status(400).json({ error: analysisResult.error });
-    }
+    // Save to database
+    const analysis = new AnalysisResult({
+      userId: req.userId,
+      analysisType: 'market_insight',
+      input: { patterns },
+      analysis: patternAnalysis.analysis
+    });
+
+    await analysis.save();
 
     res.json({
       success: true,
-      analysis: analysisResult.analysis
+      analysisId: analysis._id,
+      analysis: patternAnalysis.analysis
     });
   } catch (error) {
+    console.error('Pattern analysis error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -52,20 +68,28 @@ router.post('/risk-management', auth, async (req, res) => {
     const { capital, riskPercentage } = req.body;
 
     if (!capital || !riskPercentage) {
-      return res.status(400).json({ error: 'Capital and riskPercentage required' });
+      return res.status(400).json({ error: 'Capital and riskPercentage are required' });
     }
 
-    const riskResult = await getRiskManagement(capital, riskPercentage);
+    const advice = await getRiskManagementAdvice(capital, riskPercentage);
 
-    if (!riskResult.success) {
-      return res.status(400).json({ error: riskResult.error });
-    }
+    // Save to database
+    const analysis = new AnalysisResult({
+      userId: req.userId,
+      analysisType: 'market_insight',
+      input: { capital, riskPercentage },
+      analysis: advice.advice
+    });
+
+    await analysis.save();
 
     res.json({
       success: true,
-      riskManagement: riskResult.riskManagement
+      analysisId: analysis._id,
+      advice: advice.advice
     });
   } catch (error) {
+    console.error('Risk management error:', error);
     res.status(500).json({ error: error.message });
   }
 });

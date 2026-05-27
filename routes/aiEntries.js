@@ -1,54 +1,55 @@
 const express = require('express');
+const fileupload = require('express-fileupload');
 const path = require('path');
 const fs = require('fs');
 const auth = require('../middleware/auth');
 const AnalysisResult = require('../models/AnalysisResult');
-const { analyzeChartImage, generateTradeDecision } = require('../services/aiAnalysisService');
 const User = require('../models/User');
+const { analyzeChartImage, generateTradingDecision } = require('../services/aiAnalysisService');
 
 const router = express.Router();
-const upload = require('express-fileupload');
+router.use(fileupload());
 
-router.use(upload());
-
-const uploadDir = process.env.UPLOAD_DIR || './uploads';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Upload and analyze chart
+// Analyze chart image
 router.post('/analyze', auth, async (req, res) => {
   try {
     if (!req.files || !req.files.chart) {
       return res.status(400).json({ error: 'No chart image provided' });
     }
 
-    const chart = req.files.chart;
-    const filename = `${Date.now()}-${chart.name}`;
-    const filepath = path.join(uploadDir, filename);
+    const chartFile = req.files.chart;
+    const fileName = `${Date.now()}_${chartFile.name}`;
+    const uploadPath = path.join(uploadsDir, fileName);
 
-    await chart.mv(filepath);
-
-    // Analyze chart
-    const analysisResult = await analyzeChartImage(filepath);
-
-    if (!analysisResult.success) {
-      fs.unlinkSync(filepath);
-      return res.status(400).json({ error: analysisResult.error });
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(chartFile.mimetype)) {
+      return res.status(400).json({ error: 'Invalid file type. Only images allowed' });
     }
 
-    // Generate trade decision
-    const tradeDecision = await generateTradeDecision(analysisResult.analysis);
+    // Upload file
+    await chartFile.mv(uploadPath);
+
+    // Analyze chart
+    const analysisResult = await analyzeChartImage(uploadPath);
+    const tradingDecision = await generateTradingDecision(analysisResult.analysis);
 
     // Save to database
     const analysis = new AnalysisResult({
       userId: req.userId,
       analysisType: 'chart_image',
       input: {
-        chartImageUrl: `/uploads/${filename}`
+        chartImageUrl: `/uploads/${fileName}`,
+        fileName
       },
       analysis: analysisResult.analysis,
-      tradingDecision: tradeDecision
+      tradingDecision
     });
 
     await analysis.save();
@@ -62,11 +63,10 @@ router.post('/analyze', auth, async (req, res) => {
       success: true,
       analysisId: analysis._id,
       analysis: analysisResult.analysis,
-      tradingDecision: tradeDecision,
-      chartImageUrl: `/uploads/${filename}`
+      tradingDecision
     });
   } catch (error) {
-    console.error('Analysis error:', error);
+    console.error('Chart analysis error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -76,10 +76,11 @@ router.get('/history', auth, async (req, res) => {
   try {
     const analyses = await AnalysisResult.find(
       { userId: req.userId, analysisType: 'chart_image' }
-    ).sort({ createdAt: -1 }).limit(50);
+    ).sort({ createdAt: -1 });
 
     res.json({ success: true, analyses });
   } catch (error) {
+    console.error('Get history error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -87,17 +88,19 @@ router.get('/history', auth, async (req, res) => {
 // Get specific analysis
 router.get('/:id', auth, async (req, res) => {
   try {
-    const analysis = await AnalysisResult.findOne({
-      _id: req.params.id,
-      userId: req.userId
-    });
+    const analysis = await AnalysisResult.findById(req.params.id);
 
     if (!analysis) {
       return res.status(404).json({ error: 'Analysis not found' });
     }
 
+    if (analysis.userId.toString() !== req.userId.toString()) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
     res.json({ success: true, analysis });
   } catch (error) {
+    console.error('Get analysis error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -105,25 +108,28 @@ router.get('/:id', auth, async (req, res) => {
 // Delete analysis
 router.delete('/:id', auth, async (req, res) => {
   try {
-    const analysis = await AnalysisResult.findOneAndDelete({
-      _id: req.params.id,
-      userId: req.userId
-    });
+    const analysis = await AnalysisResult.findById(req.params.id);
 
     if (!analysis) {
       return res.status(404).json({ error: 'Analysis not found' });
     }
 
-    // Delete chart image if exists
-    if (analysis.input.chartImageUrl) {
-      const filepath = path.join(__dirname, '..', analysis.input.chartImageUrl);
-      if (fs.existsSync(filepath)) {
-        fs.unlinkSync(filepath);
+    if (analysis.userId.toString() !== req.userId.toString()) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Delete file if exists
+    if (analysis.input.fileName) {
+      const filePath = path.join(uploadsDir, analysis.input.fileName);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
       }
     }
 
+    await AnalysisResult.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'Analysis deleted' });
   } catch (error) {
+    console.error('Delete analysis error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -132,27 +138,31 @@ router.delete('/:id', auth, async (req, res) => {
 router.get('/stats/summary', auth, async (req, res) => {
   try {
     const user = await User.findById(req.userId);
-    const totalAnalyses = await AnalysisResult.countDocuments({
-      userId: req.userId,
-      analysisType: 'chart_image'
-    });
+    const analyses = await AnalysisResult.find({ userId: req.userId });
 
-    const successfulAnalyses = await AnalysisResult.countDocuments({
-      userId: req.userId,
-      analysisType: 'chart_image',
-      'result.successful': true
-    });
+    const successfulTrades = analyses.filter(a => a.result?.successful).length;
+    const totalAnalyses = analyses.length;
+    const winRate = totalAnalyses > 0 ? (successfulTrades / totalAnalyses * 100).toFixed(2) : 0;
+
+    const avgRiskReward = analyses.length > 0
+      ? (analyses.reduce((sum, a) => sum + parseFloat(a.analysis?.riskRewardRatio?.ratio?.split(':')[1] || 0), 0) / analyses.length).toFixed(2)
+      : 0;
 
     res.json({
       success: true,
       stats: {
         totalAnalyses,
-        successfulAnalyses,
-        successRate: totalAnalyses > 0 ? ((successfulAnalyses / totalAnalyses) * 100).toFixed(2) + '%' : '0%',
-        ...user.analysisStats
+        successfulTrades,
+        winRate: `${winRate}%`,
+        averageRiskReward: avgRiskReward,
+        analysissByType: analyses.reduce((acc, a) => {
+          acc[a.analysisType] = (acc[a.analysisType] || 0) + 1;
+          return acc;
+        }, {})
       }
     });
   } catch (error) {
+    console.error('Get stats error:', error);
     res.status(500).json({ error: error.message });
   }
 });
