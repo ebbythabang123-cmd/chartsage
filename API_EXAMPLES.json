@@ -1,0 +1,174 @@
+{
+  "info": {
+    "title": "ChartSage AI Trading Assistant API",
+    "version": "1.0.0",
+    "description": "AI-powered trading assistant with chart analysis, technical analysis, and market insights"
+  },
+  "baseUrl": "http://localhost:5000/api",
+  "endpoints": {
+    "auth": {
+      "register": {
+        "method": "POST",
+        "path": "/auth/register",
+        "description": "Register a new user",
+        "body": {
+          "username": "string",
+          "email": "string",
+          "password": "string"
+        },
+        "example": "curl -X POST http://localhost:5000/api/auth/register -H 'Content-Type: application/json' -d '{\"username\":\"trader1\",\"email\":\"trader@example.com\",\"password\":\"pass123\"}'"
+      },
+      "login": {
+        "method": "POST",
+        "path": "/auth/login",
+        "description": "Login user",
+        "body": {
+          "email": "string",
+          "password": "string"
+        },
+        "response": {
+          "token": "jwt_token",
+          "user": {}
+        },
+        "example": "curl -X POST http://localhost:5000/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"trader@example.com\",\"password\":\"pass123\"}'"
+      },
+      "getMe": {
+        "method": "GET",
+        "path": "/auth/me",
+        "description": "Get current user",
+        "auth": "required",
+        "example": "curl -X GET http://localhost:5000/api/auth/me -H 'Authorization: Bearer TOKEN'"
+      },
+      "updateProfile": {
+        "method": "PUT",
+        "path": "/auth/profile",
+        "description": "Update user trading profile",
+        "auth": "required",
+        "body": {
+          "experience": "beginner|intermediate|advanced",
+          "riskTolerance": "low|medium|high",
+          "preferredAssets": ["string"],
+          "preferredTimeframes": ["string"]
+        },
+        "example": "curl -X PUT http://localhost:5000/api/auth/profile -H 'Authorization: Bearer TOKEN' -H 'Content-Type: application/json' -d '{\"experience\":\"intermediate\",\"riskTolerance\":\"medium\"}'"
+      }
+    },
+    "aiEntries": {
+      "analyze": {
+        "method": "POST",
+        "path": "/ai-entries/analyze",
+        "description": "Upload and analyze trading chart image",
+        "auth": "required",
+        "body": "FormData with 'chart' file",
+        "example": "curl -X POST http://localhost:5000/api/ai-entries/analyze -H 'Authorization: Bearer TOKEN' -F 'chart=@chart.jpg'"
+      },
+      "history": {
+        "method": "GET",
+        "path": "/ai-entries/history",
+        "description": "Get user's chart analysis history",
+        "auth": "required",
+        "example": "curl -X GET http://localhost:5000/api/ai-entries/history -H 'Authorization: Bearer TOKEN'"
+      },
+      "getOne": {
+        "method": "GET",
+        "path": "/ai-entries/:id",
+        "description": "Get specific analysis",
+        "auth": "required",
+        "example": "curl -X GET http://localhost:5000/api/ai-entries/ANALYSIS_ID -H 'Authorization: Bearer TOKEN'"
+      },
+      "delete": {
+        "method": "DELETE",
+        "path": "/ai-entries/:id",
+        "description": "Delete analysis",
+        "auth": "required",
+        "example": "curl -X DELETE http://localhost:5000/api/ai-entries/ANALYSIS_ID -H 'Authorization: Bearer TOKEN'"
+      },
+      "stats": {
+        "method": "GET",
+        "path": "/ai-entries/stats/summary",
+        "description": "Get user statistics",
+        "auth": "required",
+        "example": "curl -X GET http://localhost:5000/api/ai-entries/stats/summary -H 'Authorization: Bearer TOKEN'"
+      }
+    },
+    "technicalAnalysis": {
+      "analyze": {
+        "method": "POST",
+        "path": "/technical-analysis/analyze",
+        "description": "Analyze a trading symbol",
+        "auth": "required",
+        "body": {
+          "symbol": "string (e.g., BTC, ETH)",
+          "timeframe": "string (e.g., 1H, 4H, 1D)"
+        },
+        "example": "curl -X POST http://localhost:5000/api/technical-analysis/analyze -H 'Authorization: Bearer TOKEN' -H 'Content-Type: application/json' -d '{\"symbol\":\"BTC\",\"timeframe\":\"1D\"}'"
+      },
+      "compare": {
+        "method": "POST",
+        "path": "/technical-analysis/compare",
+        "description": "Compare multiple assets",
+        "auth": "required",
+        "body": {
+          "assets": ["string"],
+          "timeframe": "string"
+        },
+        "example": "curl -X POST http://localhost:5000/api/technical-analysis/compare -H 'Authorization: Bearer TOKEN' -H 'Content-Type: application/json' -d '{\"assets\":[\"BTC\",\"ETH\",\"SOL\"],\"timeframe\":\"4H\"}'"
+      }
+    },
+    "marketInsights": {
+      "insights": {
+        "method": "GET",
+        "path": "/market-insights",
+        "description": "Get current market insights",
+        "auth": "required",
+        "example": "curl -X GET http://localhost:5000/api/market-insights -H 'Authorization: Bearer TOKEN'"
+      },
+      "patterns": {
+        "method": "POST",
+        "path": "/market-insights/patterns",
+        "description": "Analyze chart patterns",
+        "auth": "required",
+        "body": {
+          "patterns": ["string"]
+        },
+        "example": "curl -X POST http://localhost:5000/api/market-insights/patterns -H 'Authorization: Bearer TOKEN' -H 'Content-Type: application/json' -d '{\"patterns\":[\"Head and Shoulders\",\"Double Top\"]}'"
+      },
+      "riskManagement": {
+        "method": "POST",
+        "path": "/market-insights/risk-management",
+        "description": "Get risk management advice",
+        "auth": "required",
+        "body": {
+          "capital": "number",
+          "riskPercentage": "number"
+        },
+        "example": "curl -X POST http://localhost:5000/api/market-insights/risk-management -H 'Authorization: Bearer TOKEN' -H 'Content-Type: application/json' -d '{\"capital\":10000,\"riskPercentage\":2}'"
+      }
+    },
+    "chartAnalysis": {
+      "updateResult": {
+        "method": "PUT",
+        "path": "/chart-analysis/:id/result",
+        "description": "Update trade result for an analysis",
+        "auth": "required",
+        "body": {
+          "exitPrice": "number",
+          "profitLoss": "number",
+          "successful": "boolean",
+          "resultNotes": "string"
+        },
+        "example": "curl -X PUT http://localhost:5000/api/chart-analysis/ANALYSIS_ID/result -H 'Authorization: Bearer TOKEN' -H 'Content-Type: application/json' -d '{\"exitPrice\":46500,\"profitLoss\":1500,\"successful\":true}'"
+      },
+      "byType": {
+        "method": "GET",
+        "path": "/chart-analysis/by-type/:type",
+        "description": "Get analyses by type",
+        "auth": "required",
+        "params": {
+          "type": "chart_image|technical_symbol|market_insight"
+        },
+        "example": "curl -X GET http://localhost:5000/api/chart-analysis/by-type/chart_image -H 'Authorization: Bearer TOKEN'"
+      }
+    }
+  }
+}

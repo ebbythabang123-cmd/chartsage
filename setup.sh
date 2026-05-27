@@ -1,28 +1,48 @@
 #!/bin/bash
 
-echo "🚀 Setting up AI Trading Assistant..."
+# ChartSage Setup Script
 
-# Create uploads directory
-mkdir -p uploads
+echo "🚀 ChartSage AI Trading Assistant - Setup"
+echo "=========================================="
 
-# Copy .env file
-if [ ! -f .env ]; then
-  cp .env.example .env
-  echo "✅ Created .env file - please update with your configuration"
+# Check Node.js
+if ! command -v node &> /dev/null; then
+    echo "❌ Node.js not found. Please install from https://nodejs.org/"
+    exit 1
+fi
+echo "✅ Node.js found: $(node --version)"
+
+# Check MongoDB
+if ! command -v mongod &> /dev/null; then
+    echo "⚠️  MongoDB not found. Install from https://www.mongodb.com/"
 else
-  echo "✅ .env file already exists"
+    echo "✅ MongoDB found"
 fi
 
 # Install dependencies
+echo ""
 echo "📦 Installing dependencies..."
 npm install
 
+if [ ! -f .env ]; then
+    echo ""
+    echo "📝 Creating .env file..."
+    cp .env.example .env
+    echo "⚠️  Please edit .env with your API keys"
+else
+    echo "✅ .env file already exists"
+fi
+
+# Create uploads directory
+mkdir -p uploads
+echo "✅ Created uploads directory"
+
 echo ""
-echo "✨ Setup complete!"
+echo "✅ Setup complete!"
 echo ""
 echo "Next steps:"
-echo "1. Update .env with your OpenAI API key and MongoDB URI"
+echo "1. Edit .env with your OpenAI API key and MongoDB URI"
 echo "2. Start MongoDB: mongod"
-echo "3. Run the server: npm run dev"
+echo "3. Run: npm run dev"
 echo ""
-echo "Server will be available at http://localhost:5000"
+echo "Server will run at http://localhost:5000"
